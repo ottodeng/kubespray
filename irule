@@ -1,0 +1,35 @@
+# Collect a response payload
+when HTTP_REQUEST {
+
+    if {[HTTP::uri] eq "/1"}{
+        set collected 1
+    }
+    else {
+        set collected 0
+    }
+}
+
+when HTTP_RESPONSE {
+  if { $collected == 1 } {
+      log local0. "http reponse 1"
+      set hsl [HSL::open -proto UDP -pool pool_hsl_5044]
+      # Trigger collection for up to 1MB of data
+      if {[HTTP::header exists "Content-Length"] && [HTTP::header "Content-Length"] <= 1048576}{
+        set content_length [HTTP::header "Content-Length"]
+      } else {
+          set content_length 1048576
+      }
+    if { $content_length > 0} {
+        HTTP::collect $content_length
+      }
+    }
+}
+when HTTP_RESPONSE_DATA {
+  if { $collected == 1 } {
+    log local0. "http reponse 2"
+    set response_payload [HTTP::payload]
+    set log_msg ""
+    append log_msg "$response_payload"
+    HSL::send $hsl $log_msg
+  }
+}
